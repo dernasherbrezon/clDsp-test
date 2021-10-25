@@ -1,8 +1,8 @@
 __kernel void fir_filter_process(__global const float *restrict input, __global const float *restrict taps, const unsigned int taps_len, __global float *output, const unsigned int decimation, const unsigned int output_len) {
 
     for (int i = 0; i < output_len; i++) {
-        int input_offset = get_global_id(0) * output_len * decimation * 2 + i * 2 * decimation;
-        int output_offset = get_global_id(0) * output_len * 2 + i * 2;
+        int output_offset = (get_global_id(0) * output_len + i) * 2;
+        int input_offset = output_offset * decimation;
         float real0 = 0.0f;
         float imag0 = 0.0f;
         for (int j = 0; j < taps_len; j++) {

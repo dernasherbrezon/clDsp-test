@@ -220,41 +220,56 @@ int fir_filter_process(const float complex *input, size_t input_len, float compl
     }
 
     memcpy(filter->working_buffer + filter->history_offset, input, sizeof(float complex) * input_len);
+
+//    for (int i = 0; i < 20; i++) {
+//        float complex num = filter->working_buffer[filter->history_offset + i];
+//        printf("%.9f, %.9f ", crealf(num), cimagf(num));
+//    }
+//    printf("\n");
+//    for (int i = 0; i < 20; i++) {
+//        printf("%.9f, %.9f ", crealf(filter->taps[i]), cimagf(filter->taps[i]));
+//    }
+//    printf("\n\n");
+
     size_t working_len = filter->history_offset + input_len;
     size_t current_index = 0;
     // input might not have enough data to produce output sample
-    printf("input items: %zu\n", input_len);
+//    printf("input items: %zu\n", input_len);
     size_t result_len = (working_len - filter->taps_len) / filter->decimation + 1;
-    printf("total output items: %zu\n", result_len);
+//    printf("total output items: %zu\n", result_len);
+//    printf("taps len: %zu\n", filter->taps_len);
+    //FIXME check if the value below is more than 12
     size_t global_item_size_rounded = (size_t) ceilf((float) result_len / 12) * 12;
-    printf("total output items: %zu\n", global_item_size_rounded);
+//    printf("total output items: %zu\n", global_item_size_rounded);
     size_t local_item_size = 12;
     size_t work_items = 12;
     current_index = result_len * filter->decimation;
 //    size_t local_item_size = 2; // Process in groups of 64
     if (working_len > (filter->taps_len - 1)) {
+        //FIXME round up 2376 vs expected 2381.
         cl_uint output_len_obj = result_len / local_item_size;
+//        printf("number of items per single qpu: %d\n", output_len_obj);
         cl_int ret = clSetKernelArg(filter->kernel, 5, sizeof(cl_uint), &output_len_obj);
-        printf("clSetKernelArg: %d\n", ret);
+//        printf("clSetKernelArg: %d\n", ret);
         if (ret != 0) {
             return ret;
         }
 
         ret = clEnqueueWriteBuffer(filter->command_queue, filter->input_obj, CL_TRUE, 0,
                                    working_len * sizeof(float complex), filter->working_buffer, 0, NULL, NULL);
-        printf("clEnqueueWriteBuffer data: %d\n", ret);
+//        printf("clEnqueueWriteBuffer data: %d\n", ret);
         if (ret != CL_SUCCESS) {
             return ret;
         }
         ret = clEnqueueNDRangeKernel(filter->command_queue, filter->kernel, 1, NULL,
                                      &work_items, &local_item_size, 0, NULL, NULL);
-        printf("clEnqueueNDRangeKernel: %d\n", ret);
+//        printf("clEnqueueNDRangeKernel: %d\n", ret);
         if (ret != 0) {
             return ret;
         }
         ret = clEnqueueReadBuffer(filter->command_queue, filter->output_obj, CL_TRUE, 0,
                                   result_len * sizeof(float complex), filter->output, 0, NULL, NULL);
-        printf("clEnqueueReadBuffer: %d\n", ret);
+//        printf("clEnqueueReadBuffer: %d\n", ret);
         if (ret != 0) {
             return ret;
         }
