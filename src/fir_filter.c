@@ -118,6 +118,7 @@ int fir_filter_create(uint8_t decimation, float complex *taps, size_t taps_len, 
         return ret;
     }
 // Create memory buffers on the device for each vector
+    printf("allocated working buf: %zu\n", result->working_len_total);
     result->input_obj = clCreateBuffer(result->context, CL_MEM_READ_ONLY,
                                        result->working_len_total * sizeof(float complex), NULL, &ret);
     printf("clCreateBuffer: %d\n", ret);
@@ -200,6 +201,7 @@ int fir_filter_create(uint8_t decimation, float complex *taps, size_t taps_len, 
         fir_filter_destroy(result);
         return ret;
     }
+    printf("decimation: %d\n", result->decimation);
     ret = clSetKernelArg(result->kernel, 4, sizeof(cl_uint), &result->decimation);
     printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
@@ -218,61 +220,59 @@ int fir_filter_process(const float complex *input, size_t input_len, float compl
         *output_len = 0;
         return -1;
     }
+    if (input_len == 0) {
+        *output = NULL;
+        *output_len = 0;
+        return 0;
+    }
 
     memcpy(filter->working_buffer + filter->history_offset, input, sizeof(float complex) * input_len);
-
-//    for (int i = 0; i < 20; i++) {
-//        float complex num = filter->working_buffer[filter->history_offset + i];
-//        printf("%.9f, %.9f ", crealf(num), cimagf(num));
-//    }
-//    printf("\n");
-//    for (int i = 0; i < 20; i++) {
-//        printf("%.9f, %.9f ", crealf(filter->taps[i]), cimagf(filter->taps[i]));
-//    }
-//    printf("\n\n");
-
     size_t working_len = filter->history_offset + input_len;
-    size_t current_index = 0;
+
+    if (working_len < filter->taps_len) {
+        filter->history_offset = working_len;
+        *output = NULL;
+        *output_len = 0;
+        return 0;
+    }
+//    size_t current_index = 0;
     // input might not have enough data to produce output sample
 //    printf("input items: %zu\n", input_len);
-    size_t result_len = (working_len - filter->taps_len) / filter->decimation + 1;
+    size_t result_len = (size_t) ceilf((float) input_len / filter->decimation);
 //    printf("total output items: %zu\n", result_len);
 //    printf("taps len: %zu\n", filter->taps_len);
-    //FIXME check if the value below is more than 12
-    size_t global_item_size_rounded = (size_t) ceilf((float) result_len / 12) * 12;
-//    printf("total output items: %zu\n", global_item_size_rounded);
+    size_t output_len_rounded = (size_t) ceilf((float) result_len / 12);
+//    printf("total output items: %zu\n", output_len_rounded);
     size_t local_item_size = 12;
     size_t work_items = 12;
-    current_index = result_len * filter->decimation;
+//    current_index = result_len * filter->decimation;
 //    size_t local_item_size = 2; // Process in groups of 64
-    if (working_len > (filter->taps_len - 1)) {
-        //FIXME round up 2376 vs expected 2381.
-        cl_uint output_len_obj = result_len / local_item_size;
 //        printf("number of items per single qpu: %d\n", output_len_obj);
-        cl_int ret = clSetKernelArg(filter->kernel, 5, sizeof(cl_uint), &output_len_obj);
+    cl_int ret = clSetKernelArg(filter->kernel, 5, sizeof(cl_uint), &output_len_rounded);
 //        printf("clSetKernelArg: %d\n", ret);
-        if (ret != 0) {
-            return ret;
-        }
+    if (ret != 0) {
+        return ret;
+    }
 
-        ret = clEnqueueWriteBuffer(filter->command_queue, filter->input_obj, CL_TRUE, 0,
-                                   working_len * sizeof(float complex), filter->working_buffer, 0, NULL, NULL);
-//        printf("clEnqueueWriteBuffer data: %d\n", ret);
-        if (ret != CL_SUCCESS) {
-            return ret;
-        }
-        ret = clEnqueueNDRangeKernel(filter->command_queue, filter->kernel, 1, NULL,
-                                     &work_items, &local_item_size, 0, NULL, NULL);
-//        printf("clEnqueueNDRangeKernel: %d\n", ret);
-        if (ret != 0) {
-            return ret;
-        }
-        ret = clEnqueueReadBuffer(filter->command_queue, filter->output_obj, CL_TRUE, 0,
-                                  result_len * sizeof(float complex), filter->output, 0, NULL, NULL);
-//        printf("clEnqueueReadBuffer: %d\n", ret);
-        if (ret != 0) {
-            return ret;
-        }
+//    printf("writing: %zu\n", working_len);
+    ret = clEnqueueWriteBuffer(filter->command_queue, filter->input_obj, CL_TRUE, 0,
+                               working_len * sizeof(float complex), filter->working_buffer, 0, NULL, NULL);
+    if (ret != CL_SUCCESS) {
+        printf("clEnqueueWriteBuffer data: %d\n", ret);
+        return ret;
+    }
+    ret = clEnqueueNDRangeKernel(filter->command_queue, filter->kernel, 1, NULL,
+                                 &work_items, &local_item_size, 0, NULL, NULL);
+    if (ret != 0) {
+        printf("clEnqueueNDRangeKernel: %d\n", ret);
+        return ret;
+    }
+    ret = clEnqueueReadBuffer(filter->command_queue, filter->output_obj, CL_TRUE, 0,
+                              result_len * sizeof(float complex), filter->output, 0, NULL, NULL);
+    if (ret != 0) {
+        printf("clEnqueueReadBuffer: %d\n", ret);
+        return ret;
+    }
 //        produced = 2381;
 
 //        int offset = 100;
@@ -289,12 +289,12 @@ int fir_filter_process(const float complex *input, size_t input_len, float compl
 //        }
 //        printf("\n");
 
-    }
     // preserve history for the next execution
-    filter->history_offset = working_len - current_index;
-    if (current_index > 0) {
-        memmove(filter->working_buffer, filter->working_buffer + current_index, sizeof(float complex) * filter->history_offset);
-    }
+//    filter->history_offset = working_len - current_index;
+
+//    printf("history offset: %zu\n", filter->history_offset);
+    filter->history_offset = filter->taps_len - 1 - (result_len * filter->decimation - input_len);
+    memmove(filter->working_buffer, filter->working_buffer + (working_len - filter->history_offset), sizeof(float complex) * filter->history_offset);
 
     *output = filter->output;
     *output_len = result_len;
