@@ -17,6 +17,37 @@ size_t expected_len = sizeof(expected_float) / sizeof(float) / 2;
 
 static void create_input();
 
+START_TEST(test_edge_cases2)
+    {
+        size_t taps_len = 3;
+        float complex *taps = malloc(sizeof(float complex) * taps_len);
+        ck_assert(taps != NULL);
+        taps[0] = 1.0f + 2.0F * I;
+        taps[1] = 3.0f + 4.0F * I;
+        taps[2] = 1.0f + 2.0F * I;
+
+        size_t max_input_len = 70;
+        int code = fir_filter_create(4, taps, taps_len, max_input_len, &filter);
+        ck_assert_int_eq(code, 0);
+
+        create_input();
+
+        float expected_decim4_float[] = {-2.000000000F, 1.000000000F, -26.000000000F, 83.000000000F, -50.000000000F, 187.000000000F, -74.000000000F, 291.000000000F, -98.000000000F, 395.000000000F, -122.000000000F, 499.000000000F, -146.000000000F, 603.000000000F, -170.000000000F, 707.000000000F,
+                                         -194.000000000F, 811.000000000F, -218.000000000F, 915.000000000F, -242.000000000F, 1019.000000000F, -266.000000000F, 1123.000000000F, -290.000000000F, 1227.000000000F, -314.000000000F, 1331.000000000F, -338.000000000F, 1435.000000000F, -362.000000000F,
+                                         1539.000000000F, -386.000000000F, 1643.000000000F, -410.000000000F, 1747.000000000F};
+        float complex *expected_decim4 = (float complex *) expected_decim4_float;
+        size_t expected_decim4_len = sizeof(expected_decim4_float) / sizeof(float) / 2;
+
+        float complex *output = NULL;
+        size_t output_len = 0;
+        fir_filter_process(input, max_input_len, &output, &output_len, filter);
+        ck_assert_int_eq(output_len, expected_decim4_len);
+        for (size_t i = 0; i < expected_decim4_len; i++) {
+            ck_assert_int_eq((int32_t) crealf(expected_decim4[i]) * 10000, (int32_t) crealf(output[i]) * 10000);
+        }
+    }
+END_TEST
+
 START_TEST(test_edge_cases)
     {
         size_t taps_len = 3;
@@ -102,7 +133,8 @@ Suite *common_suite(void) {
     tc_core = tcase_create("Core");
 
 //    tcase_add_test(tc_core, test_normal);
-    tcase_add_test(tc_core, test_edge_cases);
+//    tcase_add_test(tc_core, test_edge_cases);
+    tcase_add_test(tc_core, test_edge_cases2);
 
     tcase_add_checked_fixture(tc_core, setup, teardown);
     suite_add_tcase(s, tc_core);

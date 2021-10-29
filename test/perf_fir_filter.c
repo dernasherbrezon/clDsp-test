@@ -14,7 +14,12 @@ int main(void) {
     fread(taps, sizeof(float complex), taps_len, fp);
     fclose(fp);
 
-    size_t input_len = 200000 / 2;
+//    for (int i = 0; i < taps_len; i++) {
+//        printf("%.9fF, %.9fF ", crealf(taps[i]), cimagf(taps[i]));
+//    }
+//    printf("\n");
+
+    size_t input_len = 8340;
 
     fir_filter *filter = NULL;
     int code = fir_filter_create(2016000 / 48000, taps, taps_len, input_len, &filter);
@@ -30,19 +35,24 @@ int main(void) {
         int8_t cur_index = (int8_t) (i * 2);
         input[i] = cur_index / 128.0F + I * ((cur_index + 1) / 128.0F);
     }
+//    for (int i = 0; i < taps_len; i++) {
+//        printf("%.9f, %.9f ", crealf(input[i]), cimagf(input[i]));
+//    }
+//    printf("\n");
     double totalTime = 0.0;
-    int total = 1;
+    int total = 10;
+    float complex *output = NULL;
+    size_t output_len = 0;
     for (int j = 0; j < total; j++) {
-        int total_executions = 1;
+        int total_executions = 10;
         clock_t begin = clock();
         for (int i = 0; i < total_executions; i++) {
-            float complex *output = NULL;
-            size_t output_len = 0;
             fir_filter_process(input, input_len, &output, &output_len, filter);
-            for (int i = 0; i < 20; i++) {
-                printf("%.9f, %.9f ", crealf(output[i]), cimagf(output[i]));
-            }
-            printf("\n");
+            printf("done: %d %d\n", j, i);
+//            for (int i = 0; i < 20; i++) {
+//                printf("%.9f, %.9f ", crealf(output[i]), cimagf(output[i]));
+//            }
+//            printf("\n");
         }
         clock_t end = clock();
         double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
@@ -53,7 +63,6 @@ int main(void) {
     fir_filter_destroy(filter);
 
     // Raspberrypi 3
-    // average time: 0.099887
 
     return EXIT_SUCCESS;
 }
