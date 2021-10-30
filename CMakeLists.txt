@@ -3,7 +3,7 @@ project(clDsp C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_library(clDsp ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter.c)
+add_library(clDsp ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter.c ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter_float8.c)
 
 find_package(PkgConfig REQUIRED)
 
