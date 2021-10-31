@@ -1,7 +1,6 @@
 #include <time.h>
 #include <stdio.h>
 #include "../src/fir_filter_float8.h"
-#include <unistd.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -40,25 +39,17 @@ int main(void) {
 //        printf("%.9f, %.9f ", crealf(input[i]), cimagf(input[i]));
 //    }
 //    printf("\n");
-//    sleep(10);
-
-    double totalTime = 0.0;
-    int total = 10;
     float complex *output = NULL;
     size_t output_len = 0;
-    for (int j = 0; j < total; j++) {
-        clock_t begin = clock();
-        int total_executions = 10;
-        for (int i = 0; i < total_executions; i++) {
-            fir_filter_float8_process(input, input_len, &output, &output_len, filter);
-        }
-        clock_t end = clock();
-        double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
-        totalTime += time_spent;
-//        printf("done: %d %d %f\n", j, i, time_spent);
+    int total_executions = 1000;
+    clock_t begin = clock();
+    for (int i = 0; i < total_executions; i++) {
+        fir_filter_float8_process(input, input_len, &output, &output_len, filter);
     }
+    clock_t end = clock();
+    double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
 
-    printf("average time: %f\n", totalTime / total);
+    printf("average time: %f\n", time_spent / total_executions);
     for (int i = 0; i < 20; i++) {
         printf("%.9f, %.9f ", crealf(output[i]), cimagf(output[i]));
     }

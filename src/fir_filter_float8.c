@@ -17,6 +17,7 @@ struct fir_filter_float8t {
     float complex *taps;
     float complex *original_taps;
     size_t taps_len;
+    size_t original_taps_len;
 
     float complex *working_buffer;
     size_t history_offset;
@@ -45,19 +46,22 @@ int fir_filter_float8_create(uint8_t decimation, float complex *taps, size_t tap
     *result = (struct fir_filter_float8t) {0};
 
     result->decimation = decimation;
+    result->original_taps_len = taps_len;
     result->taps_len = ceilf((float) taps_len / 4) * 4;
+    printf("original taps: %zu rounded: %zu\n", taps_len, result->taps_len);
     result->original_taps = taps;
     result->taps = malloc(sizeof(float complex) * result->taps_len);
     if (result->taps == NULL) {
         return -ENOMEM;
     }
     memset(result->taps, 0, sizeof(float complex) * result->taps_len);
-    memcpy(result->taps, taps, sizeof(float complex) * taps_len);
+    memcpy(result->taps, taps, sizeof(float complex) * result->original_taps_len);
+
     result->history_offset = taps_len - 1;
     result->max_input_buffer_length = max_input_buffer_length;
 
     size_t max_input_with_history = max_input_buffer_length + result->history_offset;
-    result->output_len = (size_t) ceilf((float) (max_input_with_history - taps_len) / (float) decimation);
+    result->output_len = (size_t) ceilf((float) (max_input_with_history - result->taps_len) / (float) decimation);
     printf("output length max: %zu\n", result->output_len);
     // align to 12x GPU cores in raspberry pi
     result->output_len = (size_t) ceilf((float) result->output_len / 12) * 12;
@@ -134,7 +138,7 @@ int fir_filter_float8_create(uint8_t decimation, float complex *taps, size_t tap
         return ret;
     }
     result->taps_obj = clCreateBuffer(result->context, CL_MEM_READ_ONLY,
-                                      taps_len * sizeof(float complex), NULL, &ret);
+                                      result->taps_len * sizeof(float complex), NULL, &ret);
     printf("clCreateBuffer: %d\n", ret);
     if (ret != 0) {
         fir_filter_float8_destroy(result);
@@ -150,7 +154,7 @@ int fir_filter_float8_create(uint8_t decimation, float complex *taps, size_t tap
 
     // Copy the lists A and B to their respective memory buffers
     ret = clEnqueueWriteBuffer(result->command_queue, result->taps_obj, CL_TRUE, 0,
-                               taps_len * sizeof(float complex), result->taps, 0, NULL, NULL);
+                               result->taps_len * sizeof(float complex), result->taps, 0, NULL, NULL);
     printf("clEnqueueWriteBuffer B: %d\n", ret);
     if (ret != 0) {
         fir_filter_float8_destroy(result);
@@ -236,7 +240,7 @@ int fir_filter_float8_process(const float complex *input, size_t input_len, floa
     memcpy(filter->working_buffer + filter->history_offset, input, sizeof(float complex) * input_len);
     size_t working_len = filter->history_offset + input_len;
 
-    if (working_len < filter->taps_len) {
+    if (working_len < filter->original_taps_len) {
         filter->history_offset = working_len;
         *output = NULL;
         *output_len = 0;
@@ -300,7 +304,7 @@ int fir_filter_float8_process(const float complex *input, size_t input_len, floa
 //    filter->history_offset = working_len - current_index;
 
 //    printf("history offset: %zu\n", filter->history_offset);
-    filter->history_offset = filter->taps_len - 1 - (result_len * filter->decimation - input_len);
+    filter->history_offset = filter->original_taps_len - 1 - (result_len * filter->decimation - input_len);
     memmove(filter->working_buffer, filter->working_buffer + (working_len - filter->history_offset), sizeof(float complex) * filter->history_offset);
 
     *output = filter->output;
