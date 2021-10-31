@@ -57,6 +57,7 @@ int main(void) {
     fir_filter_destroy(filter);
 
     // Raspberrypi 3
+    // average time: 0.050329
 
     return EXIT_SUCCESS;
 }
