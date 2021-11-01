@@ -14,13 +14,7 @@ int main(void) {
     fread(taps, sizeof(float complex), taps_len, fp);
     fclose(fp);
 
-//    for (int i = 0; i < taps_len; i++) {
-//        printf("%.9fF, %.9fF ", crealf(taps[i]), cimagf(taps[i]));
-//    }
-//    printf("\n");
-
     size_t input_len = 8340;
-
     fir_filter_float8 *filter = NULL;
     int code = fir_filter_float8_create(2016000 / 48000, taps, taps_len, input_len, &filter);
     if (code != 0) {
@@ -35,10 +29,6 @@ int main(void) {
         int8_t cur_index = (int8_t) (i * 2);
         input[i] = cur_index / 128.0F + I * ((cur_index + 1) / 128.0F);
     }
-//    for (int i = 0; i < taps_len; i++) {
-//        printf("%.9f, %.9f ", crealf(input[i]), cimagf(input[i]));
-//    }
-//    printf("\n");
     float complex *output = NULL;
     size_t output_len = 0;
     int total_executions = 1000;
