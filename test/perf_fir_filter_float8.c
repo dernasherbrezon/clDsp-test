@@ -59,6 +59,9 @@ int main(void) {
     // Raspberrypi 3
     // average time: 0.017571
 
+    // Raspberry pi 1
+    // average time: 0.024828
+
     return EXIT_SUCCESS;
 }
 
