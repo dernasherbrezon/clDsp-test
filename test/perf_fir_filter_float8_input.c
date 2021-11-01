@@ -1,5 +1,6 @@
 #include <time.h>
 #include <stdio.h>
+#include <math.h>
 #include "../src/fir_filter_float8.h"
 
 #ifndef M_PI
@@ -31,12 +32,16 @@ int main(void) {
             return EXIT_FAILURE;
         }
 
+        size_t rounded = (input_len / j) * j;
+
         float complex *output = NULL;
         size_t output_len = 0;
         int total_executions = 5;
         clock_t begin = clock();
         for (int i = 0; i < total_executions; i++) {
-            fir_filter_float8_process(input, j, &output, &output_len, filter);
+            for (size_t k = 0; k < rounded; k += j) {
+                fir_filter_float8_process(input + k, j, &output, &output_len, filter);
+            }
         }
         clock_t end = clock();
         double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
