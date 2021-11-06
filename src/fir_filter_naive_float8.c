@@ -1,4 +1,4 @@
-#include "fir_filter_naive.h"
+#include "fir_filter_naive_float8.h"
 #include <errno.h>
 #include <string.h>
 #include <complex.h>
@@ -10,11 +10,13 @@
 
 #define MAX_SOURCE_SIZE (0x100000)
 
-struct fir_filter_naive_t {
+struct fir_filter_naive_float8_t {
     uint8_t decimation;
 
     float complex *taps;
+    float complex *original_taps;
     size_t taps_len;
+    size_t original_taps_len;
 
     float complex *working_buffer;
     size_t history_offset;
@@ -34,17 +36,24 @@ struct fir_filter_naive_t {
     cl_program program;
 };
 
-int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps_len, size_t max_input_buffer_length, fir_filter_naive **filter) {
-    struct fir_filter_naive_t *result = malloc(sizeof(struct fir_filter_naive_t));
+int fir_filter_naive_float8_create(uint8_t decimation, float complex *taps, size_t taps_len, size_t max_input_buffer_length, fir_filter_naive_float8 **filter) {
+    struct fir_filter_naive_float8_t *result = malloc(sizeof(struct fir_filter_naive_float8_t));
     if (result == NULL) {
         return -ENOMEM;
     }
     // init all fields with 0 so that destroy_* method would work
-    *result = (struct fir_filter_naive_t) {0};
+    *result = (struct fir_filter_naive_float8_t) {0};
 
     result->decimation = decimation;
-    result->taps_len = taps_len;
-    result->taps = taps;
+    result->original_taps_len = taps_len;
+    result->taps_len = ceilf((float) taps_len / 8) * 8;
+    result->original_taps = taps;
+    result->taps = malloc(sizeof(float complex) * result->taps_len);
+    if (result->taps == NULL) {
+        return -ENOMEM;
+    }
+    memset(result->taps, 0, sizeof(float complex) * result->taps_len);
+    memcpy(result->taps, taps, sizeof(float complex) * result->original_taps_len);
     result->history_offset = taps_len - 1;
     result->max_input_buffer_length = max_input_buffer_length;
 
@@ -56,7 +65,7 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
     printf("output length max: %zu\n", result->output_len);
     result->output = malloc(sizeof(float complex) * result->output_len);
     if (result->output == NULL) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return -ENOMEM;
     }
     memset(result->output, 0, sizeof(float complex) * result->output_len);
@@ -66,7 +75,7 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
     printf("working_len_total: %zu\n", result->working_len_total);
     result->working_buffer = malloc(sizeof(float complex) * result->working_len_total);
     if (result->working_buffer == NULL) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return -ENOMEM;
     }
     memset(result->working_buffer, 0, sizeof(float complex) * result->working_len_total);
@@ -75,15 +84,15 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
     char *source_str;
     size_t source_size;
 
-    fp = fopen("../fir_filter_naive.cl", "r");
+    fp = fopen("../fir_filter_naive_float8.cl", "r");
     if (!fp) {
         fprintf(stderr, "Failed to load kernel.\n");
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return -1;
     }
     source_str = (char *) malloc(MAX_SOURCE_SIZE);
     if (source_str == NULL) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return -ENOMEM;
     }
     source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
@@ -99,21 +108,21 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
                          &result->device_id, &ret_num_devices);
     printf("clGetDeviceIDs: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
     // Create an OpenCL context
     result->context = clCreateContext(NULL, 1, &result->device_id, NULL, NULL, &ret);
     printf("clCreateContext: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
     // Create a command queue
     result->command_queue = clCreateCommandQueue(result->context, result->device_id, 0, &ret);
     printf("clCreateCommandQueue: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
 // Create memory buffers on the device for each vector
@@ -122,30 +131,30 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
                                        result->working_len_total * sizeof(float complex), NULL, &ret);
     printf("clCreateBuffer: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
     result->taps_obj = clCreateBuffer(result->context, CL_MEM_READ_ONLY,
-                                      taps_len * sizeof(float complex), NULL, &ret);
+                                      result->taps_len * sizeof(float complex), NULL, &ret);
     printf("clCreateBuffer: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
     result->output_obj = clCreateBuffer(result->context, CL_MEM_WRITE_ONLY,
                                         result->output_len * sizeof(float complex), NULL, &ret);
     printf("clCreateBuffer: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
 
     // Copy the lists A and B to their respective memory buffers
     ret = clEnqueueWriteBuffer(result->command_queue, result->taps_obj, CL_TRUE, 0,
-                               taps_len * sizeof(float complex), result->taps, 0, NULL, NULL);
+                               result->taps_len * sizeof(float complex), result->taps, 0, NULL, NULL);
     printf("clEnqueueWriteBuffer B: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
 
@@ -154,7 +163,7 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
                                                 (const char **) &source_str, (const size_t *) &source_size, &ret);
     printf("clCreateProgramWithSource: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
 
@@ -163,7 +172,7 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
     ret = clBuildProgram(result->program, 1, &result->device_id, NULL, NULL, NULL);
     printf("clBuildProgram: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
 
@@ -171,7 +180,7 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
     result->kernel = clCreateKernel(result->program, "fir_filter_process", &ret);
     printf("clCreateKernel: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
 
@@ -179,32 +188,32 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
     ret = clSetKernelArg(result->kernel, 0, sizeof(cl_mem), (void *) &result->input_obj);
     printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
     ret = clSetKernelArg(result->kernel, 1, sizeof(cl_mem), (void *) &result->taps_obj);
     printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
     ret = clSetKernelArg(result->kernel, 2, sizeof(cl_uint), &result->taps_len);
     printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
     ret = clSetKernelArg(result->kernel, 3, sizeof(cl_mem), (void *) &result->output_obj);
     printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
     printf("decimation: %d\n", result->decimation);
     ret = clSetKernelArg(result->kernel, 4, sizeof(cl_uint), &result->decimation);
     printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
-        fir_filter_naive_destroy(result);
+        fir_filter_naive_float8_destroy(result);
         return ret;
     }
 
@@ -212,7 +221,7 @@ int fir_filter_naive_create(uint8_t decimation, float complex *taps, size_t taps
     return 0;
 }
 
-int fir_filter_naive_process(const float complex *input, size_t input_len, float complex **output, size_t *output_len, fir_filter_naive *filter) {
+int fir_filter_naive_float8_process(const float complex *input, size_t input_len, float complex **output, size_t *output_len, fir_filter_naive_float8 *filter) {
     if (input_len > filter->max_input_buffer_length) {
         fprintf(stderr, "<3>requested buffer %zu is more than max: %zu\n", input_len, filter->max_input_buffer_length);
         *output = NULL;
@@ -228,7 +237,7 @@ int fir_filter_naive_process(const float complex *input, size_t input_len, float
     memcpy(filter->working_buffer + filter->history_offset, input, sizeof(float complex) * input_len);
     size_t working_len = filter->history_offset + input_len;
 
-    if (working_len < filter->taps_len) {
+    if (working_len < filter->original_taps_len) {
         filter->history_offset = working_len;
         *output = NULL;
         *output_len = 0;
@@ -258,7 +267,7 @@ int fir_filter_naive_process(const float complex *input, size_t input_len, float
         return ret;
     }
 
-    filter->history_offset = filter->taps_len - 1 - (result_len * filter->decimation - input_len);
+    filter->history_offset = filter->original_taps_len - 1 - (result_len * filter->decimation - input_len);
     memmove(filter->working_buffer, filter->working_buffer + (working_len - filter->history_offset), sizeof(float complex) * filter->history_offset);
 
     *output = filter->output;
@@ -266,12 +275,15 @@ int fir_filter_naive_process(const float complex *input, size_t input_len, float
     return 0;
 }
 
-void fir_filter_naive_destroy(fir_filter_naive *filter) {
+void fir_filter_naive_float8_destroy(fir_filter_naive_float8 *filter) {
     if (filter == NULL) {
         return;
     }
     if (filter->taps != NULL) {
         free(filter->taps);
+    }
+    if (filter->original_taps != NULL) {
+        free(filter->original_taps);
     }
     if (filter->output != NULL) {
         free(filter->output);

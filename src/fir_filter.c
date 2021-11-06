@@ -6,6 +6,7 @@
 #include <math.h>
 
 #define CL_TARGET_OPENCL_VERSION 120
+
 #include <CL/cl.h>
 
 #define MAX_SOURCE_SIZE (0x100000)
@@ -97,22 +98,22 @@ int fir_filter_create(uint8_t decimation, float complex *taps, size_t taps_len, 
     cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
     ret = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_ALL, 1,
                          &result->device_id, &ret_num_devices);
-    printf("clGetDeviceIDs: %d\n", ret);
     if (ret != 0) {
+        printf("clGetDeviceIDs: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
     // Create an OpenCL context
     result->context = clCreateContext(NULL, 1, &result->device_id, NULL, NULL, &ret);
-    printf("clCreateContext: %d\n", ret);
     if (ret != 0) {
+        printf("clCreateContext: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
     // Create a command queue
     result->command_queue = clCreateCommandQueue(result->context, result->device_id, 0, &ret);
-    printf("clCreateCommandQueue: %d\n", ret);
     if (ret != 0) {
+        printf("clCreateCommandQueue: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
@@ -120,22 +121,22 @@ int fir_filter_create(uint8_t decimation, float complex *taps, size_t taps_len, 
     printf("allocated working buf: %zu\n", result->working_len_total);
     result->input_obj = clCreateBuffer(result->context, CL_MEM_READ_ONLY,
                                        result->working_len_total * sizeof(float complex), NULL, &ret);
-    printf("clCreateBuffer: %d\n", ret);
     if (ret != 0) {
+        printf("clCreateBuffer: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
     result->taps_obj = clCreateBuffer(result->context, CL_MEM_READ_ONLY,
                                       taps_len * sizeof(float complex), NULL, &ret);
-    printf("clCreateBuffer: %d\n", ret);
     if (ret != 0) {
+        printf("clCreateBuffer: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
     result->output_obj = clCreateBuffer(result->context, CL_MEM_WRITE_ONLY,
                                         result->output_len * sizeof(float complex), NULL, &ret);
-    printf("clCreateBuffer: %d\n", ret);
     if (ret != 0) {
+        printf("clCreateBuffer: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
@@ -143,8 +144,8 @@ int fir_filter_create(uint8_t decimation, float complex *taps, size_t taps_len, 
     // Copy the lists A and B to their respective memory buffers
     ret = clEnqueueWriteBuffer(result->command_queue, result->taps_obj, CL_TRUE, 0,
                                taps_len * sizeof(float complex), result->taps, 0, NULL, NULL);
-    printf("clEnqueueWriteBuffer B: %d\n", ret);
     if (ret != 0) {
+        printf("clEnqueueWriteBuffer B: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
@@ -152,8 +153,8 @@ int fir_filter_create(uint8_t decimation, float complex *taps, size_t taps_len, 
     // Create a program from the kernel source
     result->program = clCreateProgramWithSource(result->context, 1,
                                                 (const char **) &source_str, (const size_t *) &source_size, &ret);
-    printf("clCreateProgramWithSource: %d\n", ret);
     if (ret != 0) {
+        printf("clCreateProgramWithSource: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
@@ -161,49 +162,49 @@ int fir_filter_create(uint8_t decimation, float complex *taps, size_t taps_len, 
     //FIXME sigserv when program cannot be built
     // Build the program
     ret = clBuildProgram(result->program, 1, &result->device_id, NULL, NULL, NULL);
-    printf("clBuildProgram: %d\n", ret);
     if (ret != 0) {
+        printf("clBuildProgram: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
 
     // Create the OpenCL kernel
     result->kernel = clCreateKernel(result->program, "fir_filter_process", &ret);
-    printf("clCreateKernel: %d\n", ret);
     if (ret != 0) {
+        printf("clCreateKernel: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
 
     // Set the arguments of the kernel
     ret = clSetKernelArg(result->kernel, 0, sizeof(cl_mem), (void *) &result->input_obj);
-    printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
+        printf("clSetKernelArg: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
     ret = clSetKernelArg(result->kernel, 1, sizeof(cl_mem), (void *) &result->taps_obj);
-    printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
+        printf("clSetKernelArg: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
     ret = clSetKernelArg(result->kernel, 2, sizeof(cl_uint), &result->taps_len);
-    printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
+        printf("clSetKernelArg: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
     ret = clSetKernelArg(result->kernel, 3, sizeof(cl_mem), (void *) &result->output_obj);
-    printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
+        printf("clSetKernelArg: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
     printf("decimation: %d\n", result->decimation);
     ret = clSetKernelArg(result->kernel, 4, sizeof(cl_uint), &result->decimation);
-    printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
+        printf("clSetKernelArg: %d\n", ret);
         fir_filter_destroy(result);
         return ret;
     }
@@ -234,26 +235,16 @@ int fir_filter_process(const float complex *input, size_t input_len, float compl
         *output_len = 0;
         return 0;
     }
-//    size_t current_index = 0;
-    // input might not have enough data to produce output sample
-//    printf("input items: %zu\n", input_len);
     size_t result_len = (size_t) ceilf((float) input_len / filter->decimation);
-//    printf("total output items: %zu\n", result_len);
-//    printf("taps len: %zu\n", filter->taps_len);
     size_t output_len_rounded = (size_t) ceilf((float) result_len / 12);
-//    printf("total output items: %zu\n", output_len_rounded);
     size_t local_item_size = 12;
     size_t work_items = 12;
-//    current_index = result_len * filter->decimation;
-//    size_t local_item_size = 2; // Process in groups of 64
-//        printf("number of items per single qpu: %d\n", output_len_obj);
     cl_int ret = clSetKernelArg(filter->kernel, 5, sizeof(cl_uint), &output_len_rounded);
-//        printf("clSetKernelArg: %d\n", ret);
     if (ret != 0) {
+        printf("clSetKernelArg: %d\n", ret);
         return ret;
     }
 
-//    printf("writing: %zu\n", working_len);
     ret = clEnqueueWriteBuffer(filter->command_queue, filter->input_obj, CL_TRUE, 0,
                                working_len * sizeof(float complex), filter->working_buffer, 0, NULL, NULL);
     if (ret != CL_SUCCESS) {
@@ -272,26 +263,7 @@ int fir_filter_process(const float complex *input, size_t input_len, float compl
         printf("clEnqueueReadBuffer: %d\n", ret);
         return ret;
     }
-//        produced = 2381;
 
-//        int offset = 100;
-//        for (int i = 0; i < filter->taps_len * 2; i += 2) {
-//            printf("%.9fF,%.9fF, ", filter->working_buffer[offset * 2 * filter->decimation + i], filter->working_buffer[offset * 2 * filter->decimation + i + 1]);
-//        }
-//        printf("\n");
-//        for (int i = 0; i < filter->taps_len; i++) {
-//            printf("%.9fF,%.9fF, ", crealf(filter->taps[0][i]), cimagf(filter->taps[0][i]));
-//        }
-//        printf("\n");
-//        for (int i = 0; i < 20; i++) {
-//            printf("%.9f,%.9f, ", crealf(filter->output[offset + i]), cimagf(filter->output[offset + i]));
-//        }
-//        printf("\n");
-
-    // preserve history for the next execution
-//    filter->history_offset = working_len - current_index;
-
-//    printf("history offset: %zu\n", filter->history_offset);
     filter->history_offset = filter->taps_len - 1 - (result_len * filter->decimation - input_len);
     memmove(filter->working_buffer, filter->working_buffer + (working_len - filter->history_offset), sizeof(float complex) * filter->history_offset);
 
