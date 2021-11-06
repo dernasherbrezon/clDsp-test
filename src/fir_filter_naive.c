@@ -241,8 +241,8 @@ int fir_filter_naive_process(const float complex *input, size_t input_len, float
 //    printf("total output items: %zu\n", result_len);
 //    printf("taps len: %zu\n", filter->taps_len);
     size_t output_len_rounded = (size_t) ceilf((float) result_len / 12);
-    printf("total output items: %zu\n", output_len_rounded);
-    size_t local_item_size = 1;
+//    printf("total output items: %zu\n", output_len_rounded);
+    size_t local_item_size = 12;
     size_t work_items = 12 * output_len_rounded;
 
 //    printf("writing: %zu\n", working_len);

@@ -14,11 +14,6 @@ int main(void) {
     fread(taps, sizeof(float complex), taps_len, fp);
     fclose(fp);
 
-//    for (int i = 0; i < taps_len; i++) {
-//        printf("%.9fF, %.9fF ", crealf(taps[i]), cimagf(taps[i]));
-//    }
-//    printf("\n");
-
     size_t input_len = 8340;
 
     fir_filter_naive *filter = NULL;
@@ -35,13 +30,9 @@ int main(void) {
         int8_t cur_index = (int8_t) (i * 2);
         input[i] = cur_index / 128.0F + I * ((cur_index + 1) / 128.0F);
     }
-//    for (int i = 0; i < taps_len; i++) {
-//        printf("%.9f, %.9f ", crealf(input[i]), cimagf(input[i]));
-//    }
-//    printf("\n");
     float complex *output = NULL;
     size_t output_len = 0;
-    int total_executions = 1;
+    int total_executions = 1000;
     clock_t begin = clock();
     for (int i = 0; i < total_executions; i++) {
         fir_filter_naive_process(input, input_len, &output, &output_len, filter);
@@ -57,7 +48,7 @@ int main(void) {
     fir_filter_naive_destroy(filter);
 
     // Raspberrypi 3
-    // average time:
+    // average time: 0.050191
 
     return EXIT_SUCCESS;
 }
