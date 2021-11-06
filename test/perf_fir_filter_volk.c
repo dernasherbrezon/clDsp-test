@@ -57,7 +57,7 @@ int main(void) {
     fir_filter_volk_destroy(filter);
 
     // Raspberrypi 3
-    // average time: 0.004735
+    // average time: 0.002158
 
     return EXIT_SUCCESS;
 }
