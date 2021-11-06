@@ -6,7 +6,6 @@
 #include <math.h>
 
 #define CL_TARGET_OPENCL_VERSION 120
-
 #include <CL/cl.h>
 
 #define MAX_SOURCE_SIZE (0x100000)

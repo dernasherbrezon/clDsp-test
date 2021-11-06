@@ -3,9 +3,13 @@ project(clDsp C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_library(clDsp ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter.c ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter_float8.c ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter_memmap.c)
+add_library(clDsp ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter.c ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter_volk.c ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter_float8.c ${CMAKE_CURRENT_SOURCE_DIR}/src/fir_filter_memmap.c)
 
 find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(PC_VOLK REQUIRED volk)
+include_directories(${PC_VOLK_INCLUDE_DIRS})
+target_link_libraries(clDsp ${PC_VOLK_LINK_LIBRARIES})
 
 pkg_check_modules(PC_OpenCL REQUIRED OpenCL)
 include_directories(${PC_OpenCL_INCLUDE_DIRS})
