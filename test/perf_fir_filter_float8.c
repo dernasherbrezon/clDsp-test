@@ -16,8 +16,7 @@ int main(void) {
 
     size_t input_len = 8340;
     fir_filter_float8 *filter = NULL;
-//    int code = fir_filter_float8_create(2016000 / 48000, taps, taps_len, input_len, &filter);
-    int code = fir_filter_float8_create(1, taps, taps_len, input_len, &filter);
+    int code = fir_filter_float8_create(2016000 / 48000, taps, taps_len, input_len, &filter);
     if (code != 0) {
         return EXIT_FAILURE;
     }
