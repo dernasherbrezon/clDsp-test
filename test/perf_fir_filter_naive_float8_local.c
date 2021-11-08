@@ -1,6 +1,6 @@
 #include <time.h>
 #include <stdio.h>
-#include "../src/fir_filter_naive_float8.h"
+#include "../src/fir_filter_naive_float8_local.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -16,8 +16,8 @@ int main(void) {
 
     size_t input_len = 8340;
 
-    fir_filter_naive_float8 *filter = NULL;
-    int code = fir_filter_naive_float8_create(2016000 / 48000, taps, taps_len, input_len, &filter);
+    fir_filter_naive_float8_local *filter = NULL;
+    int code = fir_filter_naive_float8_local_create(2016000 / 48000, taps, taps_len, input_len, &filter);
     if (code != 0) {
         return EXIT_FAILURE;
     }
@@ -35,7 +35,7 @@ int main(void) {
     int total_executions = 1000;
     clock_t begin = clock();
     for (int i = 0; i < total_executions; i++) {
-        fir_filter_naive_float8_process(input, input_len, &output, &output_len, filter);
+        fir_filter_naive_float8_local_process(input, input_len, &output, &output_len, filter);
     }
     clock_t end = clock();
     double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
@@ -45,10 +45,10 @@ int main(void) {
         printf("%.9f, %.9f ", crealf(output[i]), cimagf(output[i]));
     }
     printf("\n");
-    fir_filter_naive_float8_destroy(filter);
+    fir_filter_naive_float8_local_destroy(filter);
 
     // Raspberrypi 3
-    // average time: 0.014265
+    // average time: 0.014826
 
     return EXIT_SUCCESS;
 }

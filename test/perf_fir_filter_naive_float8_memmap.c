@@ -48,7 +48,7 @@ int main(void) {
     fir_filter_naive_float8_memmap_destroy(filter);
 
     // Raspberrypi 3
-    // average time: 0.018943
+    // average time: 0.014420
 
     return EXIT_SUCCESS;
 }
