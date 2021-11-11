@@ -133,10 +133,8 @@ int fir_filter_volk_process(const float complex *input, size_t input_len, float 
         *output_pointer = *filter->volk_output;
         output_pointer++;
     }
-    filter->history_offset = working_len - i;
-    if (i > 0) {
-        memmove(filter->working_buffer, filter->working_buffer + i, sizeof(float complex) * filter->history_offset);
-    }
+    filter->history_offset = filter->taps_len - 1 - (i - input_len);
+    memmove(filter->working_buffer, filter->working_buffer + (working_len - filter->history_offset), sizeof(float complex) * filter->history_offset);
 
     *output = filter->output;
     *output_len = produced;
