@@ -1,4 +1,4 @@
-#include <time.h>
+#include <sys/time.h>
 #include <stdio.h>
 #include "../src/fir_filter_volk.h"
 
@@ -38,12 +38,13 @@ int main(void) {
     float complex *output = NULL;
     size_t output_len = 0;
     int total_executions = 1000;
-    clock_t begin = clock();
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
     for (int i = 0; i < total_executions; i++) {
         fir_filter_volk_process(input, input_len, &output, &output_len, filter);
     }
-    clock_t end = clock();
-    double time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
+    gettimeofday(&end, NULL);
+    double time_spent = (double) (end.tv_usec - start.tv_usec) / 1000000 + (double) (end.tv_sec - start.tv_sec);
 
     printf("average time: %f\n", time_spent / total_executions);
     for (int i = 0; i < 20; i++) {
